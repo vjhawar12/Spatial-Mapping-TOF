@@ -4,7 +4,6 @@
 #include "PLL.h"
 
 // 11.25 deg: 32 steps
-
 #define STEPS_PER_REV 32 
 
 // 10ms delay
@@ -18,7 +17,7 @@ enum State {
 	HOME
 }; 
 
-enum State state = STOP;
+volatile enum State state = STOP;
 
 // forward direction: increment pattern index
 int full_step_pattern[] = { 
@@ -27,9 +26,12 @@ int full_step_pattern[] = {
 
 
 int pattern_index = 0;
-int blink_div = 1;
-int dir = 0; // 1: forward, 0: reverse
 int pos = 0;
+volatile int homed = 0; // 0: not at home, 1: at home
+
+// volatile because they're modified in ISRs and read outside of them
+volatile int blink_div = 1;
+volatile int dir = 1; // 1: forward, 0: reverse
 
 // Enable interrupts
 void EnableInt(void) {    
@@ -56,10 +58,10 @@ void PortJ_Init(void){
 	GPIO_PORTJ_AFSEL_R &= ~0x3; // disabling alternate function
 	GPIO_PORTJ_AMSEL_R &= ~0x3; // disabling analog functionality
 	GPIO_PORTJ_PUR_R |= 0x3; // enabling internal pull up 
-	GPIO_PORTJ_IS_R &= ~0x3; // enabling level sensitive not edge sensitive
-	GPIO_PORTJ_IBE_R  &= ~0x3; // dont want both levels to throw interrputs
-	GPIO_PORTJ_IEV_R &= ~0x3; // only letting falling levels throw interrupts 
-	GPIO_PORTJ_ICR_R |= 0x3; // clearing any pending interrupts
+	GPIO_PORTJ_IS_R &= ~0x3; // enabling edge sensitive not level sensitive
+	GPIO_PORTJ_IBE_R  &= ~0x3; // dont want both edges to throw interrputs
+	GPIO_PORTJ_IEV_R &= ~0x3; // only letting falling edges throw interrupts 
+	GPIO_PORTJ_ICR_R = 0x3; // clearing any pending interrupts
 	GPIO_PORTJ_IM_R |= 0x3; //  actually enabling interrupts from this port
 	
 	// IRQ for portJ: 51
@@ -80,15 +82,15 @@ void PortM_Init(void){
 	GPIO_PORTM_AMSEL_R &= ~0x3;
 	GPIO_PORTM_PUR_R |= 0x3;
 	GPIO_PORTM_IS_R &= ~0x3;
-	GPIO_PORTM_IBE_R  &= ~0x3; // dont want both levels to throw interrputs
-	GPIO_PORTM_IEV_R &= ~0x3; // only letting falling levels throw interrupts
-	GPIO_PORTM_ICR_R |= 0x3; // clearing any pending interrupts  
+	GPIO_PORTM_IBE_R  &= ~0x3; // dont want both edges to throw interrputs
+	GPIO_PORTM_IEV_R &= ~0x3; // only letting falling edges throw interrupts
+	GPIO_PORTM_ICR_R = 0x3; // clearing any pending interrupts  
 	GPIO_PORTM_IM_R |= 0x3; //  actually enabling interrupts from this port
 
 	// IRQ for PortM: 72
 	// ENn# = IRQ / 32 = 2
 	// Bit# = IRQ % 32 = 8
-	NVIC_EN2_R |= (1ULL << 8); 
+	NVIC_EN2_R |= (1 << 8); 
 	return;
 }
 
@@ -184,8 +186,12 @@ void full_step_once_reverse(){
 }
 
 
-void forward_full_step() {
+enum State forward_full_step() {
 	for (int i = 1; i <= STEPS_PER_REV; i++) {
+		if (state != FORWARD) {
+			// early return if button push changes state
+			return state;
+		} 
 		full_step_once_forward();
 		if (i % blink_div == 0) {
 			turn_on_led3();
@@ -194,11 +200,16 @@ void forward_full_step() {
 		}
 		SysTick_Wait10ms(DELAY);
 	}
+	return STOP;
 }
 
 
-void reverse_full_step() {
+enum State reverse_full_step() {
 	for (int i = 1; i <= STEPS_PER_REV; i++) {
+		if (state != REVERSE) {
+			// early return if button push changes state
+			return state;
+		} 
 		full_step_once_reverse();
 		if (i % blink_div == 0) {
 			turn_on_led3();
@@ -207,44 +218,53 @@ void reverse_full_step() {
 		}
 		SysTick_Wait10ms(DELAY);
 	}
+	return STOP;
 }
 
-void home() {
+enum State home() {
 	while (pos) {
+		if (state != HOME) {
+			return state;
+		}
 		full_step_once_reverse();
 		SysTick_Wait10ms(DELAY);
 	}
+	homed = 1;
+	return STOP;
 }
 
 // called in while(true) loop 
 void StateMachine() {
 	switch(state) {
 		case STOP:
-				stop();
-				turn_off_led0();
-				turn_off_led2();
-				turn_off_led3();
-				dir? turn_on_led1() : turn_off_led1();
-				break;
+			stop();
+			turn_off_led0();
+			turn_off_led2();
+			turn_off_led3();
+			dir && !homed? turn_on_led1() : turn_off_led1();
+			break;
 		case FORWARD:
-				turn_on_led0();
-				turn_on_led1();
-				blink_div == 1? turn_on_led2() : turn_off_led2();
-				forward_full_step();
-				state = STOP;
-				break;
+			homed = 0;
+			turn_on_led0();
+			turn_on_led1();
+			blink_div == 1? turn_on_led2() : turn_off_led2();
+			state = forward_full_step();
+			break;
 		case REVERSE:
-				turn_on_led0();
-				turn_off_led1();
-				blink_div == 1? turn_on_led2() : turn_off_led2();
-				reverse_full_step();
-				state = STOP;
-				break;
+			homed = 0;
+			turn_on_led0();
+			turn_off_led1();
+			blink_div == 1? turn_on_led2() : turn_off_led2();
+			state = reverse_full_step();
+			break;
 		case HOME:
-				home();
-				turn_off_led1();
-				state = STOP;
-				break;
+			turn_off_led0();
+			turn_off_led1();
+			turn_off_led2();
+			turn_off_led3();
+			stop();
+			state = home();
+			break;
 	}
 }
 
@@ -262,7 +282,7 @@ void HandleButton1Press() {
 	dir = !dir;
 }
 
-// interrupt-based approach will make button1 call this upon press
+// interrupt-based approach will make button3 call this upon press
 void HandleButton2Press() {
 	if (blink_div == 1) {
 		blink_div = 4;
@@ -271,31 +291,35 @@ void HandleButton2Press() {
 	}
 }
 
-// interrupt-based approach will make button1 call this upon press
+// interrupt-based approach will make button3 call this upon press
 void HandleButton3Press() {
 	state = HOME;
 }
 
 void GPIOJ_IRQHandler(void) {
-	volatile uint32_t mis = GPIO_PORTJ_MIS_R;
+	uint32_t mis = GPIO_PORTJ_MIS_R;
 	if (mis & 0x1) { // button0 pressed
 		GPIO_PORTJ_ICR_R = 0x1;
+		SysTick_Wait10ms(2); // button debouncing
 		HandleButton0Press();
 
 	} if (mis & 0x2) { // button1 pressed
 		GPIO_PORTJ_ICR_R = 0x2;
+		SysTick_Wait10ms(2); // button debouncing
 		HandleButton1Press();
 	}
 }
 
 void GPIOM_IRQHandler(void) {
-	volatile uint32_t mis = GPIO_PORTM_MIS_R;
+	uint32_t mis = GPIO_PORTM_MIS_R;
 	if (mis & 0x1) { // button3 pressed
 		GPIO_PORTM_ICR_R = 0x1;
+		SysTick_Wait10ms(2); // button debouncing
 		HandleButton3Press();
 
-	} if (mis & 0x2) { // button2 pressed
+	} if (mis & 0x2) { // button2 pressed	
 		GPIO_PORTM_ICR_R = 0x2;
+		SysTick_Wait10ms(2); // button debouncing
 		HandleButton2Press();
 	}
 }

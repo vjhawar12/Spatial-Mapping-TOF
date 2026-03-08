@@ -3,11 +3,15 @@
 #include "SysTick.h"
 #include "PLL.h"
 
-// 11.25 deg: 32 steps
-#define STEPS_PER_REV 32 
+
+#define STEPS_PER_REV 2048
+#define STEP_11_25 64
+#define STEP_45  256
 
 // 10ms delay
 #define DELAY 1
+#define LED_BLINK_DELAY 2
+#define BUTTON_DEBOUNCING 2
 
 
 enum State {
@@ -30,7 +34,7 @@ int pos = 0;
 volatile int homed = 0; // 0: not at home, 1: at home
 
 // volatile because they're modified in ISRs and read outside of them
-volatile int blink_div = 1;
+volatile int blink_div = STEP_11_25;
 volatile int dir = 1; // 1: forward, 0: reverse
 
 // Enable interrupts
@@ -195,7 +199,7 @@ enum State forward_full_step() {
 		full_step_once_forward();
 		if (i % blink_div == 0) {
 			turn_on_led3();
-			SysTick_Wait10ms(5);
+			SysTick_Wait10ms(LED_BLINK_DELAY);
 			turn_off_led3();
 		}
 		SysTick_Wait10ms(DELAY);
@@ -213,7 +217,7 @@ enum State reverse_full_step() {
 		full_step_once_reverse();
 		if (i % blink_div == 0) {
 			turn_on_led3();
-			SysTick_Wait10ms(5);
+			SysTick_Wait10ms(LED_BLINK_DELAY);
 			turn_off_led3();
 		}
 		SysTick_Wait10ms(DELAY);
@@ -247,14 +251,14 @@ void StateMachine() {
 			homed = 0;
 			turn_on_led0();
 			turn_on_led1();
-			blink_div == 1? turn_on_led2() : turn_off_led2();
+			blink_div == STEP_11_25? turn_on_led2() : turn_off_led2();
 			state = forward_full_step();
 			break;
 		case REVERSE:
 			homed = 0;
 			turn_on_led0();
 			turn_off_led1();
-			blink_div == 1? turn_on_led2() : turn_off_led2();
+			blink_div == STEP_11_25? turn_on_led2() : turn_off_led2();
 			state = reverse_full_step();
 			break;
 		case HOME:
@@ -280,14 +284,19 @@ void HandleButton0Press() {
 // interrupt-based approach will make button1 call this upon press
 void HandleButton1Press() {
 	dir = !dir;
+	if (state == FORWARD && dir == 0) {
+		state = REVERSE;
+	} else if (state == REVERSE && dir == 1) {
+		state = FORWARD;
+	}
 }
 
 // interrupt-based approach will make button3 call this upon press
 void HandleButton2Press() {
-	if (blink_div == 1) {
-		blink_div = 4;
+	if (blink_div == STEP_11_25) {
+		blink_div = STEP_45;
 	} else {
-		blink_div = 1;
+		blink_div = STEP_11_25;
 	}
 }
 
@@ -314,12 +323,12 @@ void GPIOM_IRQHandler(void) {
 	uint32_t mis = GPIO_PORTM_MIS_R;
 	if (mis & 0x1) { // button3 pressed
 		GPIO_PORTM_ICR_R = 0x1;
-		SysTick_Wait10ms(2); // button debouncing
+		SysTick_Wait10ms(BUTTON_DEBOUNCING); 
 		HandleButton3Press();
 
 	} if (mis & 0x2) { // button2 pressed	
 		GPIO_PORTM_ICR_R = 0x2;
-		SysTick_Wait10ms(2); // button debouncing
+		SysTick_Wait10ms(BUTTON_DEBOUNCING); 
 		HandleButton2Press();
 	}
 }

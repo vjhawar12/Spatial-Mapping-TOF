@@ -35,7 +35,8 @@ volatile int homed = 0; // 0: not at home, 1: at home
 
 // volatile because they're modified in ISRs and read outside of them
 volatile int blink_div = STEP_11_25;
-volatile int dir = 1; // 1: forward, 0: reverse
+volatile int dir = 0; // 1: forward, 0: reverse
+volatile int led2_on = 1; 
 
 // Enable interrupts
 void EnableInt(void) {    
@@ -196,6 +197,7 @@ enum State forward_full_step() {
 			// early return if button push changes state
 			return state;
 		} 
+		led2_on? turn_on_led2() : turn_off_led2();
 		full_step_once_forward();
 		if (i % blink_div == 0) {
 			turn_on_led3();
@@ -214,6 +216,7 @@ enum State reverse_full_step() {
 			// early return if button push changes state
 			return state;
 		} 
+		led2_on? turn_on_led2() : turn_off_led2();
 		full_step_once_reverse();
 		if (i % blink_div == 0) {
 			turn_on_led3();
@@ -245,20 +248,17 @@ void StateMachine() {
 			turn_off_led0();
 			turn_off_led2();
 			turn_off_led3();
-			dir && !homed? turn_on_led1() : turn_off_led1();
 			break;
 		case FORWARD:
 			homed = 0;
 			turn_on_led0();
-			turn_on_led1();
-			blink_div == STEP_11_25? turn_on_led2() : turn_off_led2();
+			turn_off_led1();
 			state = forward_full_step();
 			break;
 		case REVERSE:
 			homed = 0;
 			turn_on_led0();
-			turn_off_led1();
-			blink_div == STEP_11_25? turn_on_led2() : turn_off_led2();
+			turn_on_led1();
 			state = reverse_full_step();
 			break;
 		case HOME:
@@ -286,17 +286,21 @@ void HandleButton1Press() {
 	dir = !dir;
 	if (state == FORWARD && dir == 0) {
 		state = REVERSE;
+		turn_on_led1();
 	} else if (state == REVERSE && dir == 1) {
 		state = FORWARD;
+		turn_off_led1();
 	}
 }
 
-// interrupt-based approach will make button3 call this upon press
+// interrupt-based approach will make button2 call this upon press
 void HandleButton2Press() {
 	if (blink_div == STEP_11_25) {
 		blink_div = STEP_45;
+		led2_on = 0;
 	} else {
 		blink_div = STEP_11_25;
+		led2_on = 1;
 	}
 }
 
@@ -321,15 +325,13 @@ void GPIOJ_IRQHandler(void) {
 
 void GPIOM_IRQHandler(void) {
 	uint32_t mis = GPIO_PORTM_MIS_R;
-	if (mis & 0x1) { // button3 pressed
-		GPIO_PORTM_ICR_R = 0x1;
-		SysTick_Wait10ms(BUTTON_DEBOUNCING); 
-		HandleButton3Press();
-
-	} if (mis & 0x2) { // button2 pressed	
-		GPIO_PORTM_ICR_R = 0x2;
-		SysTick_Wait10ms(BUTTON_DEBOUNCING); 
+	GPIO_PORTM_ICR_R = 0x3;
+	SysTick_Wait10ms(BUTTON_DEBOUNCING); 
+	
+	if ((mis & 0x1) && ((GPIO_PORTM_DATA_R & 0x1) == 0)) { // button2 pressed	
 		HandleButton2Press();
+	} else if ((mis & 0x2) && ((GPIO_PORTM_DATA_R & 0x2) == 0)) { // button3 pressed
+		HandleButton3Press();
 	}
 }
 

@@ -31,13 +31,41 @@ int blink_div = 1;
 int dir = 0; // 1: forward, 0: reverse
 int pos = 0;
 
+// Enable interrupts
+void EnableInt(void) {    
+	__asm("    cpsie   i\n");
+}
+
+// Disable interrupts
+void DisableInt(void) {    
+	__asm("    cpsid   i\n");
+}
+
+// Low power wait
+void WaitForInt(void) {    
+	__asm("    wfi\n");
+}
+
 // buttons 0 and 1
 void PortJ_Init(void){	
-	SYSCTL_RCGCGPIO_R |= SYSCTL_RCGCGPIO_R8;		              // Activate the clock for Port J
-	while((SYSCTL_PRGPIO_R & SYSCTL_PRGPIO_R8) == 0){};	      // Allow time for clock to stabilize
+	SYSCTL_RCGCGPIO_R |= SYSCTL_RCGCGPIO_R8; // Activate the clock for Port J
+	while((SYSCTL_PRGPIO_R & SYSCTL_PRGPIO_R8) == 0){};	// Allow time for clock to stabilize
   
-	GPIO_PORTJ_DIR_R &= ~0x3;														// Enable PJ[0-1] as inputs 
-	GPIO_PORTJ_DEN_R |= 0x3;                        		// Enable PJ[0-1] as digital pins
+	GPIO_PORTJ_DIR_R &= ~0x3; // Enable PJ[0-1] as inputs 
+	GPIO_PORTJ_DEN_R |= 0x3; // Enable PJ[0-1] as digital pins
+	GPIO_PORTJ_AFSEL_R &= ~0x3; // disabling alternate function
+	GPIO_PORTJ_AMSEL_R &= ~0x3; // disabling analog functionality
+	GPIO_PORTJ_PUR_R |= 0x3; // enabling internal pull up 
+	GPIO_PORTJ_IS_R &= ~0x3; // enabling level sensitive not edge sensitive
+	GPIO_PORTJ_IBE_R  &= ~0x3; // dont want both levels to throw interrputs
+	GPIO_PORTJ_IEV_R &= ~0x3; // only letting falling levels throw interrupts 
+	GPIO_PORTJ_ICR_R |= 0x3; // clearing any pending interrupts
+	GPIO_PORTJ_IM_R |= 0x3; //  actually enabling interrupts from this port
+	
+	// IRQ for portJ: 51
+	// ENn# = IRQ / 32 = 1
+	// Bit# = IRQ % 32 = 19
+	NVIC_EN1_R |= (1 << 19); 
 	return;
 }
 
@@ -48,6 +76,19 @@ void PortM_Init(void){
   
 	GPIO_PORTM_DIR_R &= ~0x3;														// Enable PM[0-1] as inputs 
 	GPIO_PORTM_DEN_R |= 0x3;                        		// Enable PM[0-1] as digital pins
+	GPIO_PORTM_AFSEL_R &= ~0x3;
+	GPIO_PORTM_AMSEL_R &= ~0x3;
+	GPIO_PORTM_PUR_R |= 0x3;
+	GPIO_PORTM_IS_R &= ~0x3;
+	GPIO_PORTM_IBE_R  &= ~0x3; // dont want both levels to throw interrputs
+	GPIO_PORTM_IEV_R &= ~0x3; // only letting falling levels throw interrupts
+	GPIO_PORTM_ICR_R |= 0x3; // clearing any pending interrupts  
+	GPIO_PORTM_IM_R |= 0x3; //  actually enabling interrupts from this port
+
+	// IRQ for PortM: 72
+	// ENn# = IRQ / 32 = 2
+	// Bit# = IRQ % 32 = 8
+	NVIC_EN2_R |= (1ULL << 8); 
 	return;
 }
 
@@ -169,7 +210,7 @@ void reverse_full_step() {
 }
 
 void home() {
-	while (pos != 0) {
+	while (pos) {
 		full_step_once_reverse();
 		SysTick_Wait10ms(DELAY);
 	}
@@ -208,7 +249,7 @@ void StateMachine() {
 }
 
 // interrupt-based approach will make button0 call this upon press
-void button0_isr() {
+void HandleButton0Press() {
 	if (state == STOP) {
 		state = dir? FORWARD : REVERSE;
 	} else {
@@ -217,12 +258,12 @@ void button0_isr() {
 }
 
 // interrupt-based approach will make button1 call this upon press
-void button1_isr() {
+void HandleButton1Press() {
 	dir = !dir;
 }
 
 // interrupt-based approach will make button1 call this upon press
-void button2_isr() {
+void HandleButton2Press() {
 	if (blink_div == 1) {
 		blink_div = 4;
 	} else {
@@ -231,8 +272,32 @@ void button2_isr() {
 }
 
 // interrupt-based approach will make button1 call this upon press
-void button3_isr() {
+void HandleButton3Press() {
 	state = HOME;
+}
+
+void GPIOJ_IRQHandler(void) {
+	volatile uint32_t mis = GPIO_PORTJ_MIS_R;
+	if (mis & 0x1) { // button0 pressed
+		GPIO_PORTJ_ICR_R = 0x1;
+		HandleButton0Press();
+
+	} if (mis & 0x2) { // button1 pressed
+		GPIO_PORTJ_ICR_R = 0x2;
+		HandleButton1Press();
+	}
+}
+
+void GPIOM_IRQHandler(void) {
+	volatile uint32_t mis = GPIO_PORTM_MIS_R;
+	if (mis & 0x1) { // button3 pressed
+		GPIO_PORTM_ICR_R = 0x1;
+		HandleButton3Press();
+
+	} if (mis & 0x2) { // button2 pressed
+		GPIO_PORTM_ICR_R = 0x2;
+		HandleButton2Press();
+	}
 }
 
 
@@ -242,6 +307,7 @@ int main(void) {
 	PortN_Init();
 	PortM_Init();
 	PortJ_Init();
+	EnableInt();
 	
 	while (1) {
 		StateMachine();

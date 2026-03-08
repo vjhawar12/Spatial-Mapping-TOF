@@ -17,7 +17,14 @@ out/
 *~
 .DS_Store
 Thumbs.db
-.vscode/
+.vscode/x
 pycache/
 *.pyc
 *.flash
+
+gcc/*.obj
+gcc/*.out
+gcc/*.map
+gcc/*.elf
+gcc/*.bin
+gcc/*.hex

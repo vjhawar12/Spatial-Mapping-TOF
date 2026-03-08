@@ -326,6 +326,8 @@ void GPIOM_IRQHandler(void) {
 
 
 int main(void) {
+	PLL_Init();
+	SysTick_Init();
 	PortF_Init();
 	PortH_Init();
 	PortN_Init();

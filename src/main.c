@@ -31,7 +31,6 @@ int full_step_pattern[] = {
 
 int pattern_index = 0;
 int pos = 0;
-volatile int homed = 0; // 0: not at home, 1: at home
 
 // volatile because they're modified in ISRs and read outside of them
 volatile int blink_div = STEP_11_25;
@@ -228,15 +227,25 @@ enum State reverse_full_step() {
 	return STOP;
 }
 
-enum State home() {
-	while (pos) {
-		if (state != HOME) {
-			return state;
-		}
+void reverse_until_home() {
+	while (pos != 0) {
 		full_step_once_reverse();
 		SysTick_Wait10ms(DELAY);
 	}
-	homed = 1;
+}
+
+void forward_until_home() {
+	while (pos != 0) {
+		full_step_once_forward();
+		SysTick_Wait10ms(DELAY);
+	}
+}
+
+enum State home() {
+	int diff1 = pos - 0;
+	int diff2 = STEPS_PER_REV - pos;
+	
+	diff1 < diff2? reverse_until_home() : forward_until_home();
 	return STOP;
 }
 
@@ -250,13 +259,11 @@ void StateMachine() {
 			turn_off_led3();
 			break;
 		case FORWARD:
-			homed = 0;
 			turn_on_led0();
 			turn_off_led1();
 			state = forward_full_step();
 			break;
 		case REVERSE:
-			homed = 0;
 			turn_on_led0();
 			turn_on_led1();
 			state = reverse_full_step();
@@ -266,8 +273,8 @@ void StateMachine() {
 			turn_off_led1();
 			turn_off_led2();
 			turn_off_led3();
-			stop();
 			state = home();
+			stop();
 			break;
 	}
 }

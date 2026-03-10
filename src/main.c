@@ -260,12 +260,12 @@ void StateMachine() {
 			break;
 		case FORWARD:
 			turn_on_led0();
-			turn_off_led1();
+			turn_on_led1();
 			state = forward_full_step();
 			break;
 		case REVERSE:
 			turn_on_led0();
-			turn_on_led1();
+			turn_off_led1();
 			state = reverse_full_step();
 			break;
 		case HOME:
@@ -293,10 +293,10 @@ void HandleButton1Press() {
 	dir = !dir;
 	if (state == FORWARD && dir == 0) {
 		state = REVERSE;
-		turn_on_led1();
+		turn_off_led1();
 	} else if (state == REVERSE && dir == 1) {
 		state = FORWARD;
-		turn_off_led1();
+		turn_on_led1();
 	}
 }
 

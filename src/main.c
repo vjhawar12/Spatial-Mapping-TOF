@@ -4,6 +4,7 @@
 #include "PLL.h"
 #include "tof.h"
 #include "uart.h"
+#include "stdio.h"
 
 #define STEPS_PER_REV 2048
 #define STEP_11_25 64

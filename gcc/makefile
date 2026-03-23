@@ -7,8 +7,9 @@ override GCC_ARMCOMPILER := /usr
 CC = "$(GCC_ARMCOMPILER)/bin/arm-none-eabi-gcc"
 LNK = "$(GCC_ARMCOMPILER)/bin/arm-none-eabi-gcc"
 
-OBJECTS = main.obj uartstdio.obj pinout.obj system_msp432e401y.obj gcc_startup_msp432e401y_gcc.obj
-
+OBJECTS = main.obj uartstdio.obj pinout.obj system_msp432e401y.obj gcc_startup_msp432e401y_gcc.obj \
+          tof.obj uart.obj PLL.obj SysTick.obj onboardLEDs.obj VL53L1X_api.obj \
+          vl53l1_platform.obj
 NAME = main
 
 CFLAGS = -I.. \
@@ -72,6 +73,34 @@ system_msp432e401y.obj: ../src/system_msp432e401y.c
 	@ $(CC) $(CFLAGS) $< -c -o $@
 
 gcc_startup_msp432e401y_gcc.obj: startup_msp432e401y_gcc.c
+	@ echo Building $@
+	@ $(CC) $(CFLAGS) $< -c -o $@
+
+tof.obj: ../src/tof.c
+	@ echo Building $@
+	@ $(CC) $(CFLAGS) $< -c -o $@
+
+uart.obj: ../src/uart.c
+	@ echo Building $@
+	@ $(CC) $(CFLAGS) $< -c -o $@
+
+PLL.obj: ../src/PLL.c
+	@ echo Building $@
+	@ $(CC) $(CFLAGS) $< -c -o $@
+
+SysTick.obj: ../src/SysTick.c
+	@ echo Building $@
+	@ $(CC) $(CFLAGS) $< -c -o $@
+
+onboardLEDs.obj: ../src/onboardLEDs.c
+	@ echo Building $@
+	@ $(CC) $(CFLAGS) $< -c -o $@
+
+VL53L1X_api.obj: ../src/VL53L1X_api.c
+	@ echo Building $@
+	@ $(CC) $(CFLAGS) $< -c -o $@
+
+vl53l1_platform.obj: ../src/vl53l1_platform.c
 	@ echo Building $@
 	@ $(CC) $(CFLAGS) $< -c -o $@
 

@@ -12,7 +12,10 @@
 
 // 3.5 ms delay
 #define DELAY 440000
-#define LED_BLINK_DELAY 2
+
+// 20 ms delay
+#define LED_BLINK_DELAY 2500000
+
 #define BUTTON_DEBOUNCING 2
 
 
@@ -30,7 +33,7 @@ int full_step_pattern[] = {
 	0x3, 0x6, 0xC, 0x9
 }; 
 
-
+// setting this to 3 required for forward operation at start
 int pattern_index = 3;
 
 // volatile because they're modified in ISRs and read outside of them
@@ -43,6 +46,9 @@ volatile int button0_pressed = 0;
 volatile int button1_pressed = 0;
 volatile int button2_pressed = 0;
 volatile int button3_pressed = 0;
+
+volatile int motor_resume = 1;
+volatile int led_resume = 1;
 
 
 // Enable interrupts
@@ -178,6 +184,71 @@ void PortG_Init(void){
     return;
 }
 
+void Timer0_Init() {
+	// need a periodic timer
+	// Ensure the timer is disabled (the TnEN bit in the GPTMCTL register is cleared) before making any changes.
+	// Write the GPTM Configuration Register (GPTMCFG) with a value of 0x0000.0000.
+	//Configure the TnMR field in the GPTM Timer n Mode Register (GPTMTnMR) with 0x2 for periodic
+	// Load the start value into the GPTM Timer n Interval Load Register (GPTMTnILR)
+	// set the appropriate bits in the GPTM Interrupt Mask Register
+	// Set the TnEN bit in the GPTMCTL register to enable the timer and start counting.
+	// status flags are cleared by writing a 1 to the appropriate bit of the GPTM Interrupt Clear Register (GPTMICR).
+	SYSCTL_RCGCTIMER_R |= 0x1;
+	TIMER0_ICR_R = 0x1;
+	TIMER0_CTL_R &= ~0x1;
+	TIMER0_CFG_R = 0x0;
+	TIMER0_TAMR_R = 0x2;
+	TIMER0_TAILR_R = DELAY;
+	TIMER0_IMR_R |= 0x1;
+	TIMER0_CTL_R |= 0x1;
+
+	// enabling in NVIC, IRQ = 19
+	NVIC_EN0_R |= (1 << 19);
+}
+
+void Timer1_Init() {
+	// need a periodic timer
+	// Ensure the timer is disabled (the TnEN bit in the GPTMCTL register is cleared) before making any changes.
+	// Write the GPTM Configuration Register (GPTMCFG) with a value of 0x0000.0000.
+	//Configure the TnMR field in the GPTM Timer n Mode Register (GPTMTnMR) with 0x2 for periodic
+	// Load the start value into the GPTM Timer n Interval Load Register (GPTMTnILR)
+	// set the appropriate bits in the GPTM Interrupt Mask Register
+	// Set the TnEN bit in the GPTMCTL register to enable the timer and start counting.
+	// status flags are cleared by writing a 1 to the appropriate bit of the GPTM Interrupt Clear Register (GPTMICR).
+	SYSCTL_RCGCTIMER_R |= 0x2;
+	TIMER1_ICR_R = 0x1;
+	TIMER1_CTL_R &= ~0x1;
+	TIMER1_CFG_R = 0x0;
+	TIMER1_TAMR_R = 0x2;
+	TIMER1_TAILR_R = LED_BLINK_DELAY;
+	TIMER1_IMR_R |= 0x1;
+	TIMER1_CTL_R |= 0x1;
+
+	// enabling in NVIC, IRQ = 21
+	NVIC_EN0_R |= (1 << 21);
+}
+
+void Timer1_pause() {
+	TIMER1_CTL_R &= ~0x1;
+}
+
+void Timer1_resume() {
+	TIMER1_CTL_R |= 0x1;
+}
+
+
+void TIMER0A_IRQHandler(void) {
+    TIMER0_ICR_R = 0x1;   // clear timeout flag
+    motor_resume = 1;
+}
+
+
+void TIMER1A_IRQHandler(void) {
+    TIMER1_ICR_R = 0x1;   // clear timeout flag
+    led_resume = 1;
+	Timer1_pause();
+}
+
 
 void turn_on_led1() {
 	GPIO_PORTN_DATA_R |= 0x1;
@@ -244,15 +315,19 @@ void scan() {
 
 void reverse_until_home() {
 	while (pos != 0) {
-		full_step_once_reverse();
-		SysTick_Wait(DELAY);
+		if (motor_resume) {
+			motor_resume = 0;
+			full_step_once_reverse();
+		}
 	}
 }
 
 void forward_until_home() {
 	while (pos != 0) {
-		full_step_once_forward();
-		SysTick_Wait(DELAY);
+		if (motor_resume) {
+			motor_resume = 0;
+			full_step_once_forward();
+		}	
 	}
 }
 
@@ -279,16 +354,23 @@ void StateMachine() {
 			turn_on_led1();
 
 			blink_div == STEP_11_25? turn_on_led2() : turn_off_led2();
-			full_step_once_forward();
-			move_steps++;
-			
-			if (move_steps % blink_div == 0) {
-				turn_on_led3();
-				SysTick_Wait10ms(LED_BLINK_DELAY);
-				turn_off_led3();
-				scan();
-			}
-			SysTick_Wait(DELAY);
+			if (motor_resume) {
+				motor_resume = 0;
+				full_step_once_forward();
+				move_steps++;
+
+				if (led_resume) {
+					Timer1_pause();
+					led_resume = 0;
+					turn_off_led3();
+				}
+
+				if (move_steps % blink_div == 0) {
+					turn_on_led3();
+					led_resume = 0;	
+					scan();
+				} 
+			} 
 			
 			if (move_steps == STEPS_PER_REV) {
 				state = STOP;
@@ -299,17 +381,25 @@ void StateMachine() {
 			turn_off_led1();
 
 			blink_div == STEP_11_25? turn_on_led2() : turn_off_led2();
-			full_step_once_reverse();
-			move_steps++;
 
-			if (move_steps % blink_div == 0) {
-				turn_on_led3();
-				SysTick_Wait10ms(LED_BLINK_DELAY);
-				turn_off_led3();
-				scan();
-			}
-			
-			SysTick_Wait(DELAY);
+			if (motor_resume) {
+				motor_resume = 0;
+
+				full_step_once_reverse();
+				move_steps++;
+
+				if (led_resume) {
+					Timer1_resume();
+					led_resume = 0;
+					turn_off_led3();
+				}
+
+				if (move_steps % blink_div == 0) {
+					turn_on_led3();
+					led_resume = 0;
+					scan();
+				} 
+			}	
 
 			if (move_steps == STEPS_PER_REV) {
 				state = STOP;
@@ -401,6 +491,8 @@ int main(void) {
 	PortG_Init();
 	UART_Init();
 	I2C_Init();
+	Timer0_Init();
+	Timer1_Init();
 
 	tof_init();
 	SysTick_Wait10ms(100);
@@ -414,6 +506,8 @@ int main(void) {
 	button1_pressed = 0;
 	button2_pressed = 0;
 	button3_pressed = 0;
+	motor_resume = 1;
+	led_resume = 1;
 
 	while (1) {
 		StateMachine();

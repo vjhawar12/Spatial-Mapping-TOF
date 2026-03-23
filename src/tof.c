@@ -61,7 +61,6 @@ void tof_init(void) {
 
     for (int tries = 0; tries < 50; tries++) {
         status = VL53L1X_BootState(dev, &sensorState);
-        sprintf(printf_buffer, "Boot poll %d: status=%d sensorState=%d\r\n", tries, status, sensorState);
         UART_printf(printf_buffer);
         if (sensorState) break;
         SysTick_Wait10ms(10);

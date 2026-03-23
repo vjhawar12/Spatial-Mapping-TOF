@@ -235,7 +235,8 @@ void scan(int i) {
 		distance += tof_get_distance();
 	}
 	distance = distance / 2;
-	sprintf(printf_buffer, "Angle %d Distance %d \r\n", (i / STEP_45) * 45, distance);
+	int angle = blink_div == STEP_45? ((int)i / blink_div) * 45 : ((int)i / blink_div) * 11.25;
+	sprintf(printf_buffer, "Angle: %3d°\r\nDistance: %4d mm\r\n\r\n", angle, distance);
 	UART_printf(printf_buffer);
 }
 
@@ -248,7 +249,7 @@ enum State forward_full_step() {
 		} 
 		led2_on? turn_on_led2() : turn_off_led2();
 		full_step_once_forward();
-		if (i % STEP_45 == 0 && i != STEPS_PER_REV) {
+		if (i % blink_div == 0 && i != STEPS_PER_REV) {
 			scan(i);
 		}
 		if (i % blink_div == 0) {
@@ -270,7 +271,7 @@ enum State reverse_full_step() {
 		} 
 		led2_on? turn_on_led2() : turn_off_led2();
 		full_step_once_reverse();
-		if (i % STEP_45 == 0 && i != STEPS_PER_REV) {
+		if (i % blink_div == 0 && i != STEPS_PER_REV) {
 			scan(i);
 		}
 		if (i % blink_div == 0) {
@@ -376,9 +377,9 @@ void GPIOJ_IRQHandler(void) {
 	uint32_t mis = GPIO_PORTJ_MIS_R;
 	GPIO_PORTJ_ICR_R = mis & 0x3;
 	SysTick_Wait10ms(2); // button debouncing
-	if (mis & 0x1) { // button0 pressed
+	if (mis & 0x1  && ((GPIO_PORTJ_DATA_R & 0x1) == 0)) { // button0 pressed
 		HandleButton0Press();
-	} if (mis & 0x2) { // button1 pressed
+	} if (mis & 0x2  && ((GPIO_PORTJ_DATA_R & 0x1) == 0)) { // button1 pressed
 		HandleButton1Press();
 	}
 }

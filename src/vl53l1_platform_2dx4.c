@@ -55,16 +55,18 @@
 
 #include "tm4c1294ncpdt.h"
 #include "vl53l1_platform_2dx4.h"
+#include "onboardLEDs.h"
 #include "SysTick.h"
 #include <string.h>
 #include <time.h>
 #include <math.h>
+#include <stdio.h>
+#include "uart.h"
 
 uint8_t _I2CBuffer[256];
 
 // Configure master to write data to dev
 int8_t beginTxI2C(uint8_t dev){
-	
   I2C0_MSA_R = (dev<<1)&0xFE;    // MSA[7:1] is slave address
   I2C0_MSA_R &= ~0x01;             // MSA[0] is 0 for send
 	return 0;

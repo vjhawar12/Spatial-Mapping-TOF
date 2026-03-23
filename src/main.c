@@ -31,12 +31,12 @@ int full_step_pattern[] = {
 }; 
 
 
-int pattern_index = 0;
+int pattern_index = 3;
 int pos = 0;
 
 // volatile because they're modified in ISRs and read outside of them
 volatile int blink_div = STEP_11_25;
-volatile int dir = 0; // 1: forward, 0: reverse
+volatile int dir = 1; // 1: forward, 0: reverse
 volatile int led2_on = 1; 
 
 
@@ -231,16 +231,16 @@ void full_step_once_reverse(){
 
 void scan(int i) {
 	distance = 0;
-	for (int j = 0; j < 10; j++) {
+	for (int j = 0; j < 2; j++) {
 		distance += tof_get_distance();
 	}
-	distance = distance / 10;
+	distance = distance / 2;
 	sprintf(printf_buffer, "Angle %d Distance %d \r\n", (i / STEP_45) * 45, distance);
 	UART_printf(printf_buffer);
 }
 
 enum State forward_full_step() {
-	scan(0);
+	// scan(0);
 	for (int i = 1; i <= STEPS_PER_REV; i++) {
 		if (state != FORWARD) {
 			// early return if button push changes state
@@ -270,6 +270,9 @@ enum State reverse_full_step() {
 		} 
 		led2_on? turn_on_led2() : turn_off_led2();
 		full_step_once_reverse();
+		if (i % STEP_45 == 0 && i != STEPS_PER_REV) {
+			scan(i);
+		}
 		if (i % blink_div == 0) {
 			turn_on_led3();
 			SysTick_Wait10ms(LED_BLINK_DELAY);
@@ -371,14 +374,11 @@ void HandleButton3Press() {
 
 void GPIOJ_IRQHandler(void) {
 	uint32_t mis = GPIO_PORTJ_MIS_R;
+	GPIO_PORTJ_ICR_R = mis & 0x3;
+	SysTick_Wait10ms(2); // button debouncing
 	if (mis & 0x1) { // button0 pressed
-		GPIO_PORTJ_ICR_R = 0x1;
-		SysTick_Wait10ms(2); // button debouncing
 		HandleButton0Press();
-
 	} if (mis & 0x2) { // button1 pressed
-		GPIO_PORTJ_ICR_R = 0x2;
-		SysTick_Wait10ms(2); // button debouncing
 		HandleButton1Press();
 	}
 }
@@ -405,11 +405,16 @@ int main(void) {
 	PortM_Init();
 	PortJ_Init();
 	PortG_Init();
-	EnableInt();
 	UART_Init();
 	I2C_Init();
 
 	tof_init();
+	SysTick_Wait10ms(100);
+	stop();
+
+	GPIO_PORTJ_ICR_R = 0x3;
+	GPIO_PORTM_ICR_R = 0x3;
+	EnableInt();
 
 	while (1) {
 		StateMachine();

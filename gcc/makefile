@@ -7,9 +7,9 @@ override GCC_ARMCOMPILER := /usr
 CC = "$(GCC_ARMCOMPILER)/bin/arm-none-eabi-gcc"
 LNK = "$(GCC_ARMCOMPILER)/bin/arm-none-eabi-gcc"
 
-OBJECTS = main.obj uartstdio.obj pinout.obj system_msp432e401y.obj gcc_startup_msp432e401y_gcc.obj \
-          tof.obj uart.obj PLL.obj SysTick.obj onboardLEDs.obj VL53L1X_api.obj \
-          vl53l1_platform.obj
+OBJECTS =main.obj uartstdio.obj pinout.obj system_msp432e401y.obj \
+          gcc_startup_msp432e401y_gcc.obj tof.obj uart.obj PLL.obj \
+          SysTick.obj onboardLEDs.obj VL53L1X_api.obj vl53l1_platform_2dx4.obj
 NAME = main
 
 CFLAGS = -I.. \
@@ -100,7 +100,7 @@ VL53L1X_api.obj: ../src/VL53L1X_api.c
 	@ echo Building $@
 	@ $(CC) $(CFLAGS) $< -c -o $@
 
-vl53l1_platform.obj: ../src/vl53l1_platform.c
+vl53l1_platform_2dx4.obj: ../src/vl53l1_platform_2dx4.c
 	@ echo Building $@
 	@ $(CC) $(CFLAGS) $< -c -o $@
 

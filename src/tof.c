@@ -41,7 +41,7 @@ void VL53L1X_XSHUT(void){
     
 }
 
-uint16_t	dev = 0x29;			//address of the ToF sensor as an I2C slave peripheral
+uint16_t	dev = 0x29;			//address of the ToF sensor as an I2C slave peripheral 0x29 before
 int status=0;
 
 uint16_t wordData;
@@ -53,16 +53,26 @@ uint8_t RangeStatus;
 uint8_t dataReady;
 
 void tof_init(void) {
-  uint8_t byteData, sensorState=0, myByteArray[10] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF} , i=0;
-  uint16_t wordData;
+     uint8_t byteData, sensorState = 0;
+    uint16_t wordData;
 
-	// 1 Wait for device booted
-	while(sensorState==0){
-		status = VL53L1X_BootState(dev, &sensorState);
-		SysTick_Wait10ms(10);
-  }
-	FlashAllLEDs();
-	UART_printf("ToF Chip Booted!\r\n Please Wait...\r\n");
+    VL53L1X_XSHUT();          // force sensor reset
+    SysTick_Wait10ms(10);     // extra settle time
+
+    for (int tries = 0; tries < 50; tries++) {
+        status = VL53L1X_BootState(dev, &sensorState);
+        sprintf(printf_buffer, "Boot poll %d: status=%d sensorState=%d\r\n", tries, status, sensorState);
+        UART_printf(printf_buffer);
+        if (sensorState) break;
+        SysTick_Wait10ms(10);
+    }
+
+    if (!sensorState) {
+        UART_printf("ERROR: ToF boot timeout\r\n");
+        return;
+    }
+
+    UART_printf("ToF Chip Booted!\r\n");
 	
 	status = VL53L1X_ClearInterrupt(dev); /* clear interrupt has to be called to enable next interrupt*/
 	

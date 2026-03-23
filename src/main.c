@@ -36,12 +36,14 @@ int pattern_index = 3;
 // volatile because they're modified in ISRs and read outside of them
 volatile int blink_div = STEP_11_25;
 volatile int dir = 1; // 1: forward, 0: reverse
-volatile int led2_on = 1; 
 
 volatile int pos = 0; // just in case
 volatile int move_steps = 0;
+volatile int button0_pressed = 0;
+volatile int button1_pressed = 0;
+volatile int button2_pressed = 0;
+volatile int button3_pressed = 0;
 
-int distance = 0;
 
 // Enable interrupts
 void EnableInt(void) {    
@@ -231,7 +233,7 @@ void full_step_once_reverse(){
 }
 
 void scan() {
-	distance = 0;
+	int distance = 0;
 	for (int j = 0; j < 2; j++) {
 		distance += tof_get_distance();
 	}
@@ -258,10 +260,10 @@ void forward_until_home() {
 }
 
 void home() {
-	int diff1 = pos - 0;
-	int diff2 = STEPS_PER_REV - pos;
+	int reverse_distance = pos - 0;
+	int forward_distance = STEPS_PER_REV - pos;
 	
-	diff1 < diff2? reverse_until_home() : forward_until_home();
+	reverse_distance < forward_distance? reverse_until_home() : forward_until_home();
 	state = STOP;
 }
 
@@ -279,7 +281,7 @@ void StateMachine() {
 			turn_on_led0();
 			turn_on_led1();
 
-			led2_on? turn_on_led2() : turn_off_led2();
+			blink_div == STEP_11_25? turn_on_led2() : turn_off_led2();
 			full_step_once_forward();
 			move_steps++;
 			
@@ -299,7 +301,7 @@ void StateMachine() {
 			turn_on_led0();
 			turn_off_led1();
 
-			led2_on? turn_on_led2() : turn_off_led2();
+			blink_div == STEP_11_25? turn_on_led2() : turn_off_led2();
 			full_step_once_reverse();
 			move_steps++;
 
@@ -329,6 +331,7 @@ void StateMachine() {
 
 // interrupt-based approach will make button0 call this upon press
 void HandleButton0Press() {
+	button0_pressed = 0;
 	if (state == STOP) {
 		state = dir? FORWARD : REVERSE;
 	} else {
@@ -338,6 +341,7 @@ void HandleButton0Press() {
 
 // interrupt-based approach will make button1 call this upon press
 void HandleButton1Press() {
+	button1_pressed = 0;
 	dir = !dir;
 	move_steps = 0;
 	if (state == FORWARD && dir == 0) {
@@ -351,17 +355,17 @@ void HandleButton1Press() {
 
 // interrupt-based approach will make button2 call this upon press
 void HandleButton2Press() {
+	button2_pressed = 0;
 	if (blink_div == STEP_11_25) {
 		blink_div = STEP_45;
-		led2_on = 0;
 	} else {
 		blink_div = STEP_11_25;
-		led2_on = 1;
 	}
 }
 
 // interrupt-based approach will make button3 call this upon press
 void HandleButton3Press() {
+	button3_pressed = 0;
 	state = HOME;
 }
 
@@ -370,9 +374,9 @@ void GPIOJ_IRQHandler(void) {
 	GPIO_PORTJ_ICR_R = mis & 0x3;
 	SysTick_Wait10ms(2); // button debouncing
 	if (mis & 0x1  && ((GPIO_PORTJ_DATA_R & 0x1) == 0)) { // button0 pressed
-		HandleButton0Press();
+		button0_pressed = 1;
 	} if (mis & 0x2  && ((GPIO_PORTJ_DATA_R & 0x2) == 0)) { // button1 pressed
-		HandleButton1Press();
+		button1_pressed = 1;
 	}
 }
 
@@ -382,9 +386,9 @@ void GPIOM_IRQHandler(void) {
 	SysTick_Wait10ms(BUTTON_DEBOUNCING); 
 	
 	if ((mis & 0x1) && ((GPIO_PORTM_DATA_R & 0x1) == 0)) { // button2 pressed	
-		HandleButton2Press();
+		button2_pressed = 1;
 	} else if ((mis & 0x2) && ((GPIO_PORTM_DATA_R & 0x2) == 0)) { // button3 pressed
-		HandleButton3Press();
+		button3_pressed = 1;
 	}
 }
 
@@ -409,8 +413,17 @@ int main(void) {
 	GPIO_PORTM_ICR_R = 0x3;
 	EnableInt();
 
+	button0_pressed = 0;
+	button1_pressed = 0;
+	button2_pressed = 0;
+	button3_pressed = 0;
+
 	while (1) {
 		StateMachine();
+		if (button0_pressed) HandleButton0Press();
+		if (button1_pressed) HandleButton1Press();
+		if (button2_pressed) HandleButton2Press();
+		if (button3_pressed) HandleButton3Press();
 	}
 
 }
@@ -429,7 +442,7 @@ Architecture
   from multiple places (state machine, motion loops, and handlers). Prefer a
   single control layer responsible for updating outputs.
 
-- Avoid redundant state variables. `led2_on` duplicates information already
+- Avoid redundant state variables. `blink_div == STEP_11_25` duplicates information already
   implied by `blink_div`. LED2 state could be derived directly from the current
   angle mode.
 

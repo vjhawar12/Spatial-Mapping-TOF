@@ -10,8 +10,8 @@
 #define STEP_11_25 64
 #define STEP_45  256
 
-// 10ms delay
-#define DELAY 1
+// 3.5 ms delay
+#define DELAY 440000
 #define LED_BLINK_DELAY 2
 #define BUTTON_DEBOUNCING 2
 
@@ -233,14 +233,11 @@ void full_step_once_reverse(){
 }
 
 void scan() {
-	int distance = 0;
-	for (int j = 0; j < 2; j++) {
-		distance += tof_get_distance();
-	}
-	distance = distance / 2;
-	int angle =  (pos * 36000) / STEPS_PER_REV;
+	int distance = tof_get_distance();
+	int relative_angle =  (move_steps * 36000) / STEPS_PER_REV;
+	int absolute_angle =  (pos * 36000) / STEPS_PER_REV;
 
-	sprintf(printf_buffer, "Angle: %3d.%02d°\r\n Distance: %4d mm\r\n\r\n", angle / 100, angle % 100, distance);
+	sprintf(printf_buffer, "Relative Angle: %3d.%02d°\r\n Absolute Angle: %3d.%02d°\r\n Distance: %4d mm\r\n\r\n", relative_angle / 100, relative_angle % 100, absolute_angle / 100, absolute_angle % 100, distance);
 	UART_printf(printf_buffer);
 }
 
@@ -248,14 +245,14 @@ void scan() {
 void reverse_until_home() {
 	while (pos != 0) {
 		full_step_once_reverse();
-		SysTick_Wait10ms(DELAY);
+		SysTick_Wait(DELAY);
 	}
 }
 
 void forward_until_home() {
 	while (pos != 0) {
 		full_step_once_forward();
-		SysTick_Wait10ms(DELAY);
+		SysTick_Wait(DELAY);
 	}
 }
 
@@ -291,7 +288,7 @@ void StateMachine() {
 				turn_off_led3();
 				scan();
 			}
-			SysTick_Wait10ms(DELAY);
+			SysTick_Wait(DELAY);
 			
 			if (move_steps == STEPS_PER_REV) {
 				state = STOP;
@@ -312,7 +309,7 @@ void StateMachine() {
 				scan();
 			}
 			
-			SysTick_Wait10ms(DELAY);
+			SysTick_Wait(DELAY);
 
 			if (move_steps == STEPS_PER_REV) {
 				state = STOP;
@@ -427,67 +424,3 @@ int main(void) {
 	}
 
 }
-
-/*
-Suggested Improvements / Code Review Notes
-
-Architecture
-------------
-- Avoid blocking motor control loops (forward_full_step / reverse_full_step).
-  Instead, step the motor once per iteration of the main loop. This makes the
-  system more responsive to interrupts and simplifies stop, reverse, and home logic.
-#ifndef TOF_H
-#define TOF_H
-- Centralize hardware control. Currently LEDs and motor outputs are modified
-  from multiple places (state machine, motion loops, and handlers). Prefer a
-  single control layer responsible for updating outputs.
-
-- Avoid redundant state variables. `blink_div == STEP_11_25` duplicates information already
-  implied by `blink_div`. LED2 state could be derived directly from the current
-  angle mode.
-
-Interrupt Handling
-------------------
-- Do not use blocking delays inside ISRs (SysTick_Wait10ms in GPIO handlers).
-  ISRs should execute quickly. Instead:
-      1. Clear the interrupt
-      2. Set an event flag
-      3. Handle debouncing and logic in the main loop
-
-- ISRs should ideally only signal events (button presses) and not directly
-  modify system state.
-
-State Machine Design
---------------------
-- The state machine is generally clear but state ownership is scattered.
-  Prefer a design where:
-      - ISRs only generate events
-      - The main loop processes events and performs state transitions
-      - Hardware outputs are updated in one place.
-
-- `home()` always returns STOP, so its return value is unnecessary.
-  Consider changing it to `void home(void)` or consistently using the return value.
-
-Stepper Motor Control
----------------------
-- Motor rotation is implemented as long blocking loops (up to 2048 steps).
-  This reduces responsiveness to button presses. A better approach is to
-  execute one step per loop iteration and let the state machine control motion.
-
-- Shortest-path home logic works but would benefit from clearer naming
-  (e.g., `reverse_distance` and `forward_distance`) and comments.
-
-Code Readability
-----------------
-- Some variables have unclear names (e.g., `dir`, `diff1`, `diff2`).
-  More descriptive names improve maintainability.
-
-- Several GPIO bit masks are "magic numbers" (0x3, 0x11, etc.).
-  These should ideally be replaced with named constants.
-
-General Embedded Practices
---------------------------
-- Separate board-level hardware configuration from application logic where possible.
-- Keep ISRs minimal and deterministic.
-- Minimize duplicated state and derive behavior from existing variables.
-*/

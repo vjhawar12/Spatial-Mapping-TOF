@@ -32,13 +32,14 @@ int full_step_pattern[] = {
 
 
 int pattern_index = 3;
-int pos = 0;
 
 // volatile because they're modified in ISRs and read outside of them
 volatile int blink_div = STEP_11_25;
 volatile int dir = 1; // 1: forward, 0: reverse
 volatile int led2_on = 1; 
 
+volatile int pos = 0; // just in case
+volatile int move_steps = 0;
 
 int distance = 0;
 
@@ -218,7 +219,7 @@ void full_step_once_forward(){
 	pattern_index++;
 	pattern_index &= 3;
 	pos++;
-	pos = pos % STEPS_PER_REV;
+	pos = pos % STEPS_PER_REV; 
 }
 
 void full_step_once_reverse(){
@@ -229,60 +230,18 @@ void full_step_once_reverse(){
 	pos = (pos + STEPS_PER_REV) % STEPS_PER_REV; 
 }
 
-void scan(int i) {
+void scan() {
 	distance = 0;
 	for (int j = 0; j < 2; j++) {
 		distance += tof_get_distance();
 	}
 	distance = distance / 2;
-	int angle = blink_div == STEP_45? ((int)i / blink_div) * 45 : ((int)i / blink_div) * 11.25;
-	sprintf(printf_buffer, "Angle: %3d°\r\nDistance: %4d mm\r\n\r\n", angle, distance);
+	int angle =  (pos * 36000) / STEPS_PER_REV;
+
+	sprintf(printf_buffer, "Angle: %3d.%02d°\r\n Distance: %4d mm\r\n\r\n", angle / 100, angle % 100, distance);
 	UART_printf(printf_buffer);
 }
 
-enum State forward_full_step() {
-	// scan(0);
-	for (int i = 1; i <= STEPS_PER_REV; i++) {
-		if (state != FORWARD) {
-			// early return if button push changes state
-			return state;
-		} 
-		led2_on? turn_on_led2() : turn_off_led2();
-		full_step_once_forward();
-		if (i % blink_div == 0 && i != STEPS_PER_REV) {
-			scan(i);
-		}
-		if (i % blink_div == 0) {
-			turn_on_led3();
-			SysTick_Wait10ms(LED_BLINK_DELAY);
-			turn_off_led3();
-		}
-		SysTick_Wait10ms(DELAY);
-	}
-	return STOP;
-}
-
-
-enum State reverse_full_step() {
-	for (int i = 1; i <= STEPS_PER_REV; i++) {
-		if (state != REVERSE) {
-			// early return if button push changes state
-			return state;
-		} 
-		led2_on? turn_on_led2() : turn_off_led2();
-		full_step_once_reverse();
-		if (i % blink_div == 0 && i != STEPS_PER_REV) {
-			scan(i);
-		}
-		if (i % blink_div == 0) {
-			turn_on_led3();
-			SysTick_Wait10ms(LED_BLINK_DELAY);
-			turn_off_led3();
-		}
-		SysTick_Wait10ms(DELAY);
-	}
-	return STOP;
-}
 
 void reverse_until_home() {
 	while (pos != 0) {
@@ -298,12 +257,12 @@ void forward_until_home() {
 	}
 }
 
-enum State home() {
+void home() {
 	int diff1 = pos - 0;
 	int diff2 = STEPS_PER_REV - pos;
 	
 	diff1 < diff2? reverse_until_home() : forward_until_home();
-	return STOP;
+	state = STOP;
 }
 
 // called in while(true) loop 
@@ -314,23 +273,55 @@ void StateMachine() {
 			turn_off_led0();
 			turn_off_led2();
 			turn_off_led3();
+			move_steps = 0;
 			break;
 		case FORWARD:
 			turn_on_led0();
 			turn_on_led1();
-			state = forward_full_step();
+
+			led2_on? turn_on_led2() : turn_off_led2();
+			full_step_once_forward();
+			move_steps++;
+			
+			if (move_steps % blink_div == 0) {
+				turn_on_led3();
+				SysTick_Wait10ms(LED_BLINK_DELAY);
+				turn_off_led3();
+				scan();
+			}
+			SysTick_Wait10ms(DELAY);
+			
+			if (move_steps == STEPS_PER_REV) {
+				state = STOP;
+			}
 			break;
 		case REVERSE:
 			turn_on_led0();
 			turn_off_led1();
-			state = reverse_full_step();
+
+			led2_on? turn_on_led2() : turn_off_led2();
+			full_step_once_reverse();
+			move_steps++;
+
+			if (move_steps % blink_div == 0) {
+				turn_on_led3();
+				SysTick_Wait10ms(LED_BLINK_DELAY);
+				turn_off_led3();
+				scan();
+			}
+			
+			SysTick_Wait10ms(DELAY);
+
+			if (move_steps == STEPS_PER_REV) {
+				state = STOP;
+			}
 			break;
 		case HOME:
 			turn_off_led0();
 			turn_off_led1();
 			turn_off_led2();
 			turn_off_led3();
-			state = home();
+			home();
 			stop();
 			break;
 	}
@@ -348,6 +339,7 @@ void HandleButton0Press() {
 // interrupt-based approach will make button1 call this upon press
 void HandleButton1Press() {
 	dir = !dir;
+	move_steps = 0;
 	if (state == FORWARD && dir == 0) {
 		state = REVERSE;
 		turn_off_led1();
@@ -379,7 +371,7 @@ void GPIOJ_IRQHandler(void) {
 	SysTick_Wait10ms(2); // button debouncing
 	if (mis & 0x1  && ((GPIO_PORTJ_DATA_R & 0x1) == 0)) { // button0 pressed
 		HandleButton0Press();
-	} if (mis & 0x2  && ((GPIO_PORTJ_DATA_R & 0x1) == 0)) { // button1 pressed
+	} if (mis & 0x2  && ((GPIO_PORTJ_DATA_R & 0x2) == 0)) { // button1 pressed
 		HandleButton1Press();
 	}
 }

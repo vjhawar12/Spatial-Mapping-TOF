@@ -46,7 +46,7 @@ uint16_t	dev = 0x29;			//address of the ToF sensor as an I2C slave peripheral 0x
 int status=0;
 
 uint16_t wordData;
-extern uint16_t Distance;
+uint16_t Distance;
 uint16_t SignalRate;
 uint16_t AmbientRate;
 uint16_t SpadNum; 

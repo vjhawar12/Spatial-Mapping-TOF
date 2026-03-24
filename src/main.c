@@ -4,13 +4,14 @@
 #include "tof.h"
 #include "uart.h"
 #include "stdio.h"
+#include "VL53L1X_api.h"
 
 #define STEPS_PER_REV 2048
 #define STEP_11_25 64
 #define STEP_45  256
 
 // 3.5 ms delay
-#define DELAY 440000
+#define DELAY 480000
 
 // 20 ms delay
 #define LED_BLINK_DELAY 2500000
@@ -44,6 +45,8 @@ volatile int dir = 1; // 1: forward, 0: reverse
 
 volatile int pos = 0; // just in case
 volatile int move_steps = 0;
+volatile int scan_pos = 0;
+volatile int scan_move_steps = 0;
 volatile int button0_pressed = 0;
 volatile int button1_pressed = 0;
 volatile int button2_pressed = 0;
@@ -57,7 +60,12 @@ volatile uint32_t last_time_buttton3_pressed = 0;
 volatile uint32_t ms_ticks = 0;
 
 volatile int motor_resume = 1;
+volatile int scan_ready = 0;
+volatile int scan_pending = 0;
 
+extern uint16_t Distance;
+extern uint16_t	dev;
+extern int status;
 
 // Enable interrupts
 void EnableInt(void) {    
@@ -158,36 +166,38 @@ void PortH_Init(void){
 }
 
 void I2C_Init(void){
-  SYSCTL_RCGCI2C_R |= SYSCTL_RCGCI2C_R0;           													// activate I2C0
-  SYSCTL_RCGCGPIO_R |= SYSCTL_RCGCGPIO_R1;          												// activate port B
-  while((SYSCTL_PRGPIO_R&0x0002) == 0){};																		// ready?
+	SYSCTL_RCGCI2C_R |= SYSCTL_RCGCI2C_R0;           													// activate I2C0
+	SYSCTL_RCGCGPIO_R |= SYSCTL_RCGCGPIO_R1;          												// activate port B
+	while((SYSCTL_PRGPIO_R&0x0002) == 0){};																		// ready?
 
-    GPIO_PORTB_AFSEL_R |= 0x0C;           																	// 3) enable alt funct on PB2,3       0b00001100
-    GPIO_PORTB_ODR_R |= 0x08;             																	// 4) enable open drain on PB3 only
+	GPIO_PORTB_AFSEL_R |= 0x0C;           																	// 3) enable alt funct on PB2,3       0b00001100
+	GPIO_PORTB_ODR_R |= 0x08;             																	// 4) enable open drain on PB3 only
 
-    GPIO_PORTB_DEN_R |= 0x0C;             																	// 5) enable digital I/O on PB2,3
-//    GPIO_PORTB_AMSEL_R &= ~0x0C;          																// 7) disable analog functionality on PB2,3
+	GPIO_PORTB_DEN_R |= 0x0C;             																	// 5) enable digital I/O on PB2,3
+	//    GPIO_PORTB_AMSEL_R &= ~0x0C;          																// 7) disable analog functionality on PB2,3
 
-                                                                            // 6) configure PB2,3 as I2C
-//  GPIO_PORTB_PCTL_R = (GPIO_PORTB_PCTL_R&0xFFFF00FF)+0x00003300;
-  GPIO_PORTB_PCTL_R = (GPIO_PORTB_PCTL_R&0xFFFF00FF)+0x00002200;    //TED
-    I2C0_MCR_R = I2C_MCR_MFE;                      													// 9) master function enable
-    I2C0_MTPR_R = 0b0000000000000101000000000111011;                       	// 8) configure for 100 kbps clock (added 8 clocks of glitch suppression ~50ns)
-//    I2C0_MTPR_R = 0x3B;                                        						// 8) configure for 100 kbps clock
+																			// 6) configure PB2,3 as I2C
+	//  GPIO_PORTB_PCTL_R = (GPIO_PORTB_PCTL_R&0xFFFF00FF)+0x00003300;
+	GPIO_PORTB_PCTL_R = (GPIO_PORTB_PCTL_R&0xFFFF00FF)+0x00002200;    //TED
+	I2C0_MCR_R = I2C_MCR_MFE;                      													// 9) master function enable
+	I2C0_MTPR_R = 0b0000000000000101000000000111011;                       	// 8) configure for 100 kbps clock (added 8 clocks of glitch suppression ~50ns)
+	//    I2C0_MTPR_R = 0x3B;                                        						// 8) configure for 100 kbps clock
         
 }
+
+
 
 //The VL53L1X needs to be reset using XSHUT.  We will use PG0
 void PortG_Init(void){
     //Use PortG0
-    SYSCTL_RCGCGPIO_R |= SYSCTL_RCGCGPIO_R6;                // activate clock for Port N
-    while((SYSCTL_PRGPIO_R&SYSCTL_PRGPIO_R6) == 0){};    // allow time for clock to stabilize
-    GPIO_PORTG_DIR_R &= 0x00;                                        // make PG0 in (HiZ)
-  GPIO_PORTG_AFSEL_R &= ~0x01;                                     // disable alt funct on PG0
-  GPIO_PORTG_DEN_R |= 0x01;                                        // enable digital I/O on PG0
-                                                                                                    // configure PG0 as GPIO
-  //GPIO_PORTN_PCTL_R = (GPIO_PORTN_PCTL_R&0xFFFFFF00)+0x00000000;
-  GPIO_PORTG_AMSEL_R &= ~0x01;                                     // disable analog functionality on PN0
+	SYSCTL_RCGCGPIO_R |= SYSCTL_RCGCGPIO_R6;                // activate clock for Port N
+	while((SYSCTL_PRGPIO_R&SYSCTL_PRGPIO_R6) == 0){};    // allow time for clock to stabilize
+	GPIO_PORTG_DIR_R &= 0x00;                                        // make PG0 in (HiZ)
+	GPIO_PORTG_AFSEL_R &= ~0x01;                                     // disable alt funct on PG0
+	GPIO_PORTG_DEN_R |= 0x01;                                        // enable digital I/O on PG0
+																									// configure PG0 as GPIO
+	//GPIO_PORTN_PCTL_R = (GPIO_PORTN_PCTL_R&0xFFFFFF00)+0x00000000;
+	GPIO_PORTG_AMSEL_R &= ~0x01;                                     // disable analog functionality on PN0
 
     return;
 }
@@ -230,7 +240,7 @@ void Timer1_Init() {
 	NVIC_EN0_R |= (1 << 21);
 }
 
-static void SysTick_Init(void) {
+static void SysTick_Init() {
 	/* 
 		. Program the value in the STRELOAD register.
 2. Clear the STCURRENT register by writing to it with any value.
@@ -248,7 +258,6 @@ void TIMER0A_IRQHandler(void) {
     TIMER0_ICR_R = 0x1;   // clear timeout flag
     motor_resume = 1;
 }
-
 
 void turn_off_led3() {
 	GPIO_PORTF_DATA_R &= ~0x1;
@@ -282,12 +291,15 @@ void turn_off_led0() {
 }
 
 void flash_led3() {
-	GPIO_PORTF_DATA_R |= 0x1; // turning on LED
+	GPIO_PORTF_DATA_R |= 0x1; // turning on
+					//scan(); LED
 	TIMER1_CTL_R &= ~0x1; // ensure timer is off
 	TIMER1_ICR_R = 0x1;       // clear timeout flag
 	TIMER1_TAILR_R = LED_BLINK_DELAY;
 	TIMER1_CTL_R |= 0x1; // turn timer on again
 }
+
+
 
 void turn_on_led2() {
 	GPIO_PORTF_DATA_R |= 0x10;
@@ -318,12 +330,11 @@ void full_step_once_reverse(){
 	pos = (pos + STEPS_PER_REV) % STEPS_PER_REV; 
 }
 
-void scan() {
-	int distance = tof_get_distance();
-	int relative_angle =  (move_steps * 36000) / STEPS_PER_REV;
-	int absolute_angle =  (pos * 36000) / STEPS_PER_REV;
+void print_scan() {
+	int relative_angle =  (scan_move_steps * 36000) / STEPS_PER_REV;
+	int absolute_angle =  (scan_pos * 36000) / STEPS_PER_REV;
 
-	sprintf(printf_buffer, "Relative Angle: %3d.%02d°\r\n Absolute Angle: %3d.%02d°\r\n Distance: %4d mm\r\n\r\n", relative_angle / 100, relative_angle % 100, absolute_angle / 100, absolute_angle % 100, distance);
+	sprintf(printf_buffer, "Relative Angle: %3d.%02d°\r\n Absolute Angle: %3d.%02d°\r\n Distance: %u mm\r\n\r\n", relative_angle / 100, relative_angle % 100, absolute_angle / 100, absolute_angle % 100, Distance);
 	UART_printf(printf_buffer);
 }
 
@@ -374,13 +385,13 @@ void StateMachine() {
 				full_step_once_forward();
 				move_steps++;
 
-				if (move_steps == STEPS_PER_REV) {
-					state = STOP;
-				}
+				if (move_steps == STEPS_PER_REV) state = STOP;
 
-				if (move_steps % blink_div == 0) {
+				if ((move_steps % blink_div == 0) && !scan_pending) {
 					flash_led3();
-					scan();
+					scan_pending = 1;
+					scan_pos = pos;	
+					scan_move_steps = move_steps;
 				} 
 			} 
 			
@@ -397,13 +408,13 @@ void StateMachine() {
 				full_step_once_reverse();
 				move_steps++;
 
-				if (move_steps == STEPS_PER_REV) {
-					state = STOP;
-				}
+				if (move_steps == STEPS_PER_REV) state = STOP;
 
 				if (move_steps % blink_div == 0) {
 					flash_led3();
-					scan();
+					scan_pending = 1;
+					scan_pos = pos;	
+					scan_move_steps = move_steps;
 				} 
 			}	
 			
@@ -458,6 +469,7 @@ void HandleButton3Press() {
 	button3_pressed = 0;
 	state = HOME;
 }
+
 
 void GPIOJ_IRQHandler(void) {
 	uint32_t mis = GPIO_PORTJ_MIS_R;
@@ -527,6 +539,16 @@ int main(void) {
 		if (button1_pressed) HandleButton1Press();
 		if (button2_pressed) HandleButton2Press();
 		if (button3_pressed) HandleButton3Press();
+		
+		if (scan_pending) {
+			uint8_t ready = 0;
+			status = VL53L1X_CheckForDataReady(dev, &ready);
+			if (ready) {
+				tof_get_distance_nonblocking();
+				scan_pending = 0;
+				print_scan();
+			}
+		}
 	}
 
 }

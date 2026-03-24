@@ -107,20 +107,18 @@ void tof_get_distance_nonblocking(void) {
   status = VL53L1X_ClearInterrupt(dev); /* 8 clear interrupt has to be called to enable next interrupt*/
 }
 
-int tof_get_distance(void) {
+void tof_get_distance(void) {
   // Get the Distance Measures 50 times
   dataReady = 0;
   // 5 wait until the ToF sensor's data is ready
   while (dataReady == 0){
     status = VL53L1X_CheckForDataReady(dev, &dataReady);
-    VL53L1_WaitMs(dev, 5);
+    VL53L1_WaitMs(dev, 3);
   }
   dataReady = 0;
   
   status = VL53L1X_GetDistance(dev, &Distance) ;					//The Measured Distance value
   status = VL53L1X_ClearInterrupt(dev); /* 8 clear interrupt has to be called to enable next interrupt*/
-
-  return Distance;
 }
 
 void tof_scan(void) {
@@ -131,7 +129,7 @@ void tof_scan(void) {
 	  while (dataReady == 0){
 		      status = VL53L1X_CheckForDataReady(dev, &dataReady);
           FlashLED3(1);
-          VL53L1_WaitMs(dev, 5);
+          VL53L1_WaitMs(dev, 3);
 	  }
 		dataReady = 0;
 	  

@@ -41,11 +41,12 @@ void VL53L1X_XSHUT(void){
     
 }
 
+
 uint16_t	dev = 0x29;			//address of the ToF sensor as an I2C slave peripheral 0x29 before
 int status=0;
 
 uint16_t wordData;
-uint16_t Distance;
+extern uint16_t Distance;
 uint16_t SignalRate;
 uint16_t AmbientRate;
 uint16_t SpadNum; 
@@ -53,7 +54,7 @@ uint8_t RangeStatus;
 uint8_t dataReady;
 
 void tof_init(void) {
-     uint8_t byteData, sensorState = 0;
+    uint8_t byteData, sensorState = 0;
     uint16_t wordData;
 
     VL53L1X_XSHUT();          // force sensor reset
@@ -99,6 +100,11 @@ void tof_init(void) {
   status = VL53L1_RdWord(dev, 0x010F, &wordData); //for both model ID and type
   sprintf(printf_buffer, "Model ID & module type: 0x%X\r\n", wordData);
   UART_printf(printf_buffer);
+}
+
+void tof_get_distance_nonblocking(void) {
+  status = VL53L1X_GetDistance(dev, &Distance) ;					//The Measured Distance value
+  status = VL53L1X_ClearInterrupt(dev); /* 8 clear interrupt has to be called to enable next interrupt*/
 }
 
 int tof_get_distance(void) {

@@ -63,9 +63,14 @@ volatile int motor_resume = 1;
 volatile int scan_ready = 0;
 volatile int scan_pending = 0;
 
+
 extern uint16_t Distance;
 extern uint16_t	dev;
 extern int status;
+
+int incr_dist[] = {0, 100, 200};
+int i = 0;
+int scan_done = 0;
 
 // Enable interrupts
 void EnableInt(void) {    
@@ -330,11 +335,10 @@ void full_step_once_reverse(){
 	pos = (pos + STEPS_PER_REV) % STEPS_PER_REV; 
 }
 
-void print_scan() {
-	int relative_angle =  (scan_move_steps * 36000) / STEPS_PER_REV;
+void print_scan(int x) {
 	int absolute_angle =  (scan_pos * 36000) / STEPS_PER_REV;
 
-	sprintf(printf_buffer, "Relative Angle: %3d.%02d°\r\n Absolute Angle: %3d.%02d°\r\n Distance: %u mm\r\n\r\n", relative_angle / 100, relative_angle % 100, absolute_angle / 100, absolute_angle % 100, Distance);
+	sprintf(printf_buffer, "%d,%3d.%02d,%u\r\n", x, absolute_angle / 100, absolute_angle % 100, Distance);
 	UART_printf(printf_buffer);
 }
 
@@ -385,7 +389,10 @@ void StateMachine() {
 				full_step_once_forward();
 				move_steps++;
 
-				if (move_steps == STEPS_PER_REV) state = STOP;
+				if (move_steps == STEPS_PER_REV) {
+					state = STOP;
+					scan_done = 1;
+				}
 
 				if ((move_steps % blink_div == 0) && !scan_pending) {
 					flash_led3();
@@ -408,7 +415,10 @@ void StateMachine() {
 				full_step_once_reverse();
 				move_steps++;
 
-				if (move_steps == STEPS_PER_REV) state = STOP;
+				if (move_steps == STEPS_PER_REV) {
+					state = STOP;
+					scan_done = 1;
+				}
 
 				if (move_steps % blink_div == 0) {
 					flash_led3();
@@ -546,8 +556,17 @@ int main(void) {
 			if (ready) {
 				tof_get_distance_nonblocking();
 				scan_pending = 0;
-				print_scan();
+				print_scan(incr_dist[i]);
 			}
+		}
+
+		if (scan_done) {
+			i++; 
+			if (i > 2) {
+				UART_printf("ENDDATA\r\n"); 
+				i = 0;
+			}
+			scan_done = 0;
 		}
 	}
 

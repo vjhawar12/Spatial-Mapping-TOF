@@ -14,7 +14,7 @@
 #define DELAY 480000
 
 // 20 ms delay
-#define LED_BLINK_DELAY 2500000
+#define LED_BLINK_DELAY 4800000
 
 // 20 ms delay
 #define BUTTON_DEBOUNCING 20
@@ -51,6 +51,10 @@ volatile int button0_pressed = 0;
 volatile int button1_pressed = 0;
 volatile int button2_pressed = 0;
 volatile int button3_pressed = 0;
+
+volatile int capture_active = 0;
+volatile int homing_in_progress = 0;
+volatile int stop_requested = 0;
 
 volatile uint32_t last_time_buttton0_pressed = 0;
 volatile uint32_t last_time_buttton1_pressed = 0;
@@ -336,15 +340,30 @@ void full_step_once_reverse(){
 }
 
 void print_scan(int x) {
-	int absolute_angle =  (scan_pos * 36000) / STEPS_PER_REV;
+    int absolute_angle = (scan_pos * 36000) / STEPS_PER_REV;
+    int angle_abs = absolute_angle < 0 ? -absolute_angle : absolute_angle;
 
-	sprintf(printf_buffer, "%d,%3d.%02d,%u\r\n", x, absolute_angle / 100, absolute_angle % 100, Distance);
-	UART_printf(printf_buffer);
+    snprintf(printf_buffer, sizeof(printf_buffer),
+             "%d,%s%d.%02d,%u\r\n",
+             x,
+             (absolute_angle < 0) ? "-" : "",
+             angle_abs / 100,
+             angle_abs % 100,
+             (unsigned int)Distance);
+
+    turn_on_led2();          // D3 on before UART TX
+    UART_printf(printf_buffer);
+	uint32_t count = 200000;
+	while (count--) {}
+    turn_off_led2();         // D3 off after UART TX
 }
-
 
 void reverse_until_home() {
 	while (pos != 0) {
+		if (stop_requested) {
+			state = STOP;
+			return;
+		}
 		if (motor_resume) {
 			motor_resume = 0;
 			full_step_once_reverse();
@@ -354,19 +373,25 @@ void reverse_until_home() {
 
 void forward_until_home() {
 	while (pos != 0) {
+		if (stop_requested) {
+			state = STOP;
+			return;
+		}
 		if (motor_resume) {
 			motor_resume = 0;
 			full_step_once_forward();
-		}	
+		}
 	}
 }
 
-void home() {
-	int reverse_distance = pos - 0;
-	int forward_distance = STEPS_PER_REV - pos;
-	
-	reverse_distance < forward_distance? reverse_until_home() : forward_until_home();
-	state = STOP;
+void home_in_selected_direction() {
+	// dir = 1 means forward, dir = 0 means reverse
+	if (dir) {
+		forward_until_home();
+	} else {
+		reverse_until_home();
+	}
+	stop();
 }
 
 // called in while(true) loop 
@@ -377,93 +402,102 @@ void StateMachine() {
 			turn_off_led0();
 			turn_off_led2();
 			turn_off_led3();
-			move_steps = 0;
 			break;
+
 		case FORWARD:
 			turn_on_led0();
 			turn_on_led1();
 
-			blink_div == STEP_11_25? turn_on_led2() : turn_off_led2();
 			if (motor_resume) {
 				motor_resume = 0;
 				full_step_once_forward();
 				move_steps++;
 
-				if (move_steps == STEPS_PER_REV) {
-					state = STOP;
-					scan_done = 1;
-				}
-
 				if ((move_steps % blink_div == 0) && !scan_pending) {
 					flash_led3();
 					scan_pending = 1;
-					scan_pos = pos;	
+					scan_pos = pos;
 					scan_move_steps = move_steps;
-				} 
-			} 
-			
+				}
+
+				if (move_steps >= STEPS_PER_REV) {
+					state = STOP;
+					scan_done = 1;
+				}
+			}
 			break;
+
 		case REVERSE:
 			turn_on_led0();
 			turn_off_led1();
 
-			blink_div == STEP_11_25? turn_on_led2() : turn_off_led2();
-
 			if (motor_resume) {
 				motor_resume = 0;
-
 				full_step_once_reverse();
 				move_steps++;
 
-				if (move_steps == STEPS_PER_REV) {
+				if ((move_steps % blink_div == 0) && !scan_pending) {
+					flash_led3();
+					scan_pending = 1;
+					scan_pos = pos;
+					scan_move_steps = move_steps;
+				}
+
+				if (move_steps >= STEPS_PER_REV) {
 					state = STOP;
 					scan_done = 1;
 				}
-
-				if (move_steps % blink_div == 0) {
-					flash_led3();
-					scan_pending = 1;
-					scan_pos = pos;	
-					scan_move_steps = move_steps;
-				} 
-			}	
-			
+			}
 			break;
+
 		case HOME:
 			turn_off_led0();
 			turn_off_led1();
 			turn_off_led2();
 			turn_off_led3();
-			home();
-			stop();
+			home_in_selected_direction();
+			state = STOP;
 			break;
 	}
 }
-
 // interrupt-based approach will make button0 call this upon press
 void HandleButton0Press() {
 	button0_pressed = 0;
-	if (state == STOP) {
-		state = dir? FORWARD : REVERSE;
-	} else {
+
+	// If currently running, stop everything
+	if (capture_active || state != STOP || homing_in_progress) {
+		stop_requested = 1;
+		capture_active = 0;
+		homing_in_progress = 0;
+		scan_pending = 0;
+		scan_done = 0;
 		state = STOP;
+		stop();
+		return;
 	}
+
+	// Start a fresh 3-pass capture
+	stop_requested = 0;
+	capture_active = 1;
+	homing_in_progress = 0;
+	scan_pending = 0;
+	scan_done = 0;
+	move_steps = 0;
+	i = 0;
+
+
+	state = dir ? FORWARD : REVERSE;
 }
 
 // interrupt-based approach will make button1 call this upon press
 void HandleButton1Press() {
 	button1_pressed = 0;
 	dir = !dir;
-	move_steps = 0;
-	if (state == FORWARD && dir == 0) {
-		state = REVERSE;
-		turn_off_led1();
-	} else if (state == REVERSE && dir == 1) {
-		state = FORWARD;
-		turn_on_led1();
+
+	if (capture_active && !homing_in_progress) {
+		state = dir ? FORWARD : REVERSE;
 	}
 }
-
 // interrupt-based approach will make button2 call this upon press
 void HandleButton2Press() {
 	button2_pressed = 0;
@@ -544,30 +578,58 @@ int main(void) {
 	motor_resume = 1;
 
 	while (1) {
-		StateMachine();
-		if (button0_pressed) HandleButton0Press();
-		if (button1_pressed) HandleButton1Press();
-		if (button2_pressed) HandleButton2Press();
-		if (button3_pressed) HandleButton3Press();
-		
-		if (scan_pending) {
-			uint8_t ready = 0;
-			status = VL53L1X_CheckForDataReady(dev, &ready);
-			if (ready) {
-				tof_get_distance_nonblocking();
-				scan_pending = 0;
-				print_scan(incr_dist[i]);
-			}
-		}
+	StateMachine();
 
-		if (scan_done) {
-			i++; 
-			if (i > 2) {
-				UART_printf("ENDDATA\r\n"); 
-				i = 0;
-			}
-			scan_done = 0;
+	if (button0_pressed) HandleButton0Press();
+	if (button1_pressed) HandleButton1Press();
+	if (button2_pressed) HandleButton2Press();
+	if (button3_pressed) HandleButton3Press();
+
+	if (scan_pending) {
+		uint8_t ready = 0;
+		status = VL53L1X_CheckForDataReady(dev, &ready);
+		if (ready) {
+			tof_get_distance_nonblocking();
+			scan_pending = 0;
+			print_scan(incr_dist[i]);
 		}
 	}
+
+	if (scan_done) {
+		scan_done = 0;
+		move_steps = 0;
+		scan_pending = 0;
+
+		if (!capture_active || stop_requested) {
+			state = STOP;
+			stop();
+		}
+		else {
+			i++;
+
+			if (i >= 3) {
+				capture_active = 0;
+				state = STOP;
+				stop();
+				i = 0;
+			}
+			else {
+				// go home between passes, then launch next pass
+				homing_in_progress = 1;
+				home_in_selected_direction();
+				homing_in_progress = 0;
+
+				if (!stop_requested) {
+					state = dir ? FORWARD : REVERSE;
+				}
+				else {
+					capture_active = 0;
+					state = STOP;
+					stop();
+				}
+			}
+		}
+	}
+}
 
 }

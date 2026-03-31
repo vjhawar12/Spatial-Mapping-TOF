@@ -62,17 +62,17 @@ void tof_init(void) {
 
     for (int tries = 0; tries < 50; tries++) {
         status = VL53L1X_BootState(dev, &sensorState);
-        UART_printf(printf_buffer);
+        //UART_printf(printf_buffer);
         if (sensorState) break;
         SysTick_Wait10ms(10);
     }
 
     if (!sensorState) {
-        UART_printf("ERROR: ToF boot timeout\r\n");
+        //UART_printf("ERROR: ToF boot timeout\r\n");
         return;
     }
 
-    UART_printf("ToF Chip Booted!\r\n");
+    //UART_printf("ToF Chip Booted!\r\n");
 	
 	status = VL53L1X_ClearInterrupt(dev); /* clear interrupt has to be called to enable next interrupt*/
 	
@@ -90,16 +90,16 @@ void tof_init(void) {
 //  status = VL53L1X_SetInterMeasurementInMs(dev, 200); /* in ms, IM must be > = TB */
 
   status = VL53L1_RdByte(dev, 0x010F, &byteData); //for model ID (0xEA)
-  sprintf(printf_buffer, "Model ID: 0x%X\r\n", byteData);
-  UART_printf(printf_buffer);
+  //sprintf(printf_buffer, "Model ID: 0x%X\r\n", byteData);
+  //UART_printf(printf_buffer);
 
   status = VL53L1_RdByte(dev, 0x0110, &byteData); //for module type (0xCC)
-  sprintf(printf_buffer, "Module type: 0x%X\r\n", byteData);
-  UART_printf(printf_buffer);
+  //sprintf(printf_buffer, "Module type: 0x%X\r\n", byteData);
+  //UART_printf(printf_buffer);
 
   status = VL53L1_RdWord(dev, 0x010F, &wordData); //for both model ID and type
-  sprintf(printf_buffer, "Model ID & module type: 0x%X\r\n", wordData);
-  UART_printf(printf_buffer);
+  //sprintf(printf_buffer, "Model ID & module type: 0x%X\r\n", wordData);
+  //UART_printf(printf_buffer);
 }
 
 void tof_get_distance_nonblocking(void) {
@@ -145,8 +145,8 @@ void tof_scan(void) {
 	  status = VL53L1X_ClearInterrupt(dev); /* 8 clear interrupt has to be called to enable next interrupt*/
 		
 		// print the resulted readings to UART
-		sprintf(printf_buffer,"%u, %u, %u, %u, %u\r\n", RangeStatus, Distance, SignalRate, AmbientRate,SpadNum);
-		UART_printf(printf_buffer);
+		//sprintf(printf_buffer,"%u, %u, %u, %u, %u\r\n", RangeStatus, Distance, SignalRate, AmbientRate,SpadNum);
+		//UART_printf(printf_buffer);
 	  SysTick_Wait10ms(50);
   }
   

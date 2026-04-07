@@ -1,8 +1,8 @@
-# Spatial Mapping Using Time-of-Flight (2DX3 Project)
+# Spatial Mapping Using Time-of-Flight
 
 Embedded spatial mapping system using a **Time-of-Flight (ToF) sensor and stepper motor** to reconstruct a 3-D representation of an indoor environment.
 
-This project was developed for **McMaster University's 2DX3 Embedded Systems course** and demonstrates the integration of **embedded control, sensor acquisition, and data visualization**.
+This project was developed for **McMaster University's Embedded Systems course** and demonstrates the integration of **embedded control, sensor acquisition, and data visualization**.
 
 The system rotates a ToF sensor through **360°** using a stepper motor to capture **distance measurements in a vertical plane**, while the device is manually displaced along another axis to construct a **3-D spatial map**.
 

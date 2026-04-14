@@ -68,10 +68,10 @@ This device was developed as a low-cost, compact alternative to traditional LiDA
 
 ## Block Diagrams
 
-![Component Block Diagram](images/component_diagram.jpg)
+![Component Block Diagram](images/component_diagram.png)
 *Figure 2: Component Block Diagram*
 
-![Data Flow Graph](images/data_flow_graph.jpg)
+![Data Flow Graph](images/data_flow.png)
 *Figure 3: Data Flow Graph*
 
 ## Pinout Description
@@ -191,13 +191,13 @@ To evaluate the system in a real indoor environment, a hallway on the second flo
 ![Hallway Scan Results](images/HallwayScan.png)
 *Figure 6: Hallway Scan from Multiple Perspectives*
 
-![Hallway Scan Results](images/top_view_plot.png)
+![Hallway Scan Results](images/top_view_plot.jpeg)
 *Figure 7: Hallway Scan from Multiple Perspectives*
 
-![Hallway Scan Results](images/front_view_plot.png)
+![Hallway Scan Results](images/front_view_plot.jpeg)
 *Figure 8: Hallway Scan from Multiple Perspectives*
 
-![Hallway Scan Results](images/angle_view_plot.png)
+![Hallway Scan Results](images/angle_view_plot.jpeg)
 *Figure 9: Hallway Scan from Multiple Perspectives*
 
 The reconstructed hallway scan captures the dominant geometry of the environment, including two approximately parallel side walls and an end boundary visible in the top view. Minor curvature and point spread are present due to step angle quantization, sensor noise, and slight inconsistencies in manual translation between scans. Despite these limitations, the output demonstrates that the system can recover recognizable indoor structure using low-cost hardware.

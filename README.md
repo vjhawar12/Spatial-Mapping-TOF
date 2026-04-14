@@ -14,6 +14,9 @@ This device was developed as a low-cost, compact alternative to traditional LiDA
 - The microcontroller runs at a 32 MHz bus speed.
 - Two onboard push buttons are used: one to rotate the stepper motor and another to start ToF data acquisition and transmission.
 
+![Physical Implementation](images/physical_device.jpeg)
+*Figure 1: Physical Implementation of the LiDAR System*
+
 ## Hardware Components
 
 | Component                        | Details                                      |
@@ -62,6 +65,14 @@ This device was developed as a low-cost, compact alternative to traditional LiDA
 - Operating voltage: 2.6V - 5.5V
 - Emits 940 nm invisible Class 1 VCSEL laser
 - Three ranging modes: Short (up to ~130 cm), Medium (up to ~300 cm), Long (up to ~400 cm)
+
+## Block Diagrams
+
+![Component Block Diagram](images/component_diagram.jpg)
+*Figure 2: Component Block Diagram*
+
+![Data Flow Graph](images/data_flow_graph.jpg)
+*Figure 3: Data Flow Graph*
 
 ## Pinout Description
 
@@ -125,13 +136,19 @@ If second scan layer: `x = 1` → Point: `(1, 1060.7, 1060.7)`
    - Change `num_scans = 3` to desired number of full 360° revolutions.  
    - Change `values_per_scan = 32` to match measurements per rotation.
 
-3. **Verify Wiring** (see Circuit Schematic).
+3. **Verify Wiring**  
+
+   ![Circuit Diagram](images/Circuit_Diagram.png)
+   *Figure 7: LiDAR System Circuit Diagram*
 
 4. **Load Firmware**  
    > **Note:** This repository does not include the Keil workspace or project files. You will need to manually create a new Keil project for the MSP-EXP432E401Y and copy/paste the microcontroller code into it. The code files (e.g., `main.c`) are provided in the `/firmware` directory of this repo.
    
    Once your Keil project is set up:
    - Click Translate → Build → Load.
+
+   ![Keil Code Flowchart](images/keil_flowchart.png)
+   *Figure 8: Keil Code Flowchart*
 
 5. **Reset**  
    Press the reset button next to the microUSB after flashing.
@@ -151,12 +168,39 @@ If second scan layer: `x = 1` → Point: `(1, 1060.7, 1060.7)`
 9. **Visualization**  
    After the desired number of scans, Python automatically generates a 3D scatter plot.
 
+   ![Python Visualization Flowchart](images/python_flowchart.png)
+   *Figure 9: Python Visualization Flowchart*
+
 ## Visualization
 
 - Python libraries: `pyserial`, `NumPy`, `Open3D`
 - Incoming distance values are parsed and grouped into scans (32 measurements per scan).
 - Polar to Cartesian conversion is done on the PC.
 - Open3D renders the point cloud (front, top, angle views).
+
+## Experimental Validation
+
+To evaluate the system in a real indoor environment, a hallway on the second floor of the Engineering Technology Building (ETB) was scanned.
+
+![ETB Map](images/etb.png)
+*Figure 4: Engineering Technology Building (ETB) second floor map showing the approximate scan location*
+
+![Hallway Reference Photo](images/hallway.jpg)
+*Figure 5: Reference photo of the scanned hallway*
+
+![Hallway Scan Results](images/HallwayScan.png)
+*Figure 6: Hallway Scan from Multiple Perspectives*
+
+![Hallway Scan Results](images/top_view_plot.png)
+*Figure 7: Hallway Scan from Multiple Perspectives*
+
+![Hallway Scan Results](images/front_view_plot.png)
+*Figure 8: Hallway Scan from Multiple Perspectives*
+
+![Hallway Scan Results](images/angle_view_plot.png)
+*Figure 9: Hallway Scan from Multiple Perspectives*
+
+The reconstructed hallway scan captures the dominant geometry of the environment, including two approximately parallel side walls and an end boundary visible in the top view. Minor curvature and point spread are present due to step angle quantization, sensor noise, and slight inconsistencies in manual translation between scans. Despite these limitations, the output demonstrates that the system can recover recognizable indoor structure using low-cost hardware.
 
 ## Limitations
 
@@ -171,16 +215,8 @@ If second scan layer: `x = 1` → Point: `(1, 1060.7, 1060.7)`
 - UART 115200 bps verified stable on Windows 11 for XDS110 device.
 - Python visualization requires complete, correctly ordered serial data.
 
-## Experimental Validation
-
-The system was tested in a hallway on the second floor of the Engineering Technology Building (ETB). The reconstructed point cloud captured:
-- Two approximately parallel side walls
-- An end boundary visible in the top view
-
-Minor curvature and point spread are present due to step angle quantization, sensor noise, and manual translation inconsistencies. Despite these limitations, the system demonstrates recognizable indoor structure reconstruction using low-cost hardware.
-
 ## References
 
-[1] "VL53L1X," Pololu, [https://www.pololu.com/file/0J1506/v15311x.pdf](https://www.pololu.com/file/0J1506/v15311x.pdf) [accessed Apr. 3, 2026].
+[1] "VL53L1X," Pololu, [https://www.pololu.com/file/0J1506/v15311x.pdf](https://www.pololu.com/file/0J1506/v15311x.pdf) [accessed Apr. 13, 2026].
 
-[2] "MSP432E4 SimpleLinkTM Microcontrollers Technical Reference Manual," Texas Instruments, [https://www.ti.com/lit/ug/slau723a/slau723a.pdf](https://www.ti.com/lit/ug/slau723a/slau723a.pdf) [accessed Apr. 3, 2026].
+[2] "MSP432E4 SimpleLinkTM Microcontrollers Technical Reference Manual," Texas Instruments, [https://www.ti.com/lit/ug/slau723a/slau723a.pdf](https://www.ti.com/lit/ug/slau723a/slau723a.pdf) [accessed Apr. 13, 2026].

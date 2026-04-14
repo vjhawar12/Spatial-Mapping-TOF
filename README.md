@@ -14,8 +14,10 @@ This device was developed as a low-cost, compact alternative to traditional LiDA
 - The microcontroller runs at a 32 MHz bus speed.
 - Two onboard push buttons are used: one to rotate the stepper motor and another to start ToF data acquisition and transmission.
 
-![Physical Implementation](images/physical_device.jpeg)
-*Figure 1: Physical Implementation of the LiDAR System*
+<div align="center">
+  <img src="images/physical_device.jpeg" alt="Physical Implementation" width="600"/>
+  <p><em>Figure 1: Physical Implementation of the LiDAR System</em></p>
+</div>
 
 ## Hardware Components
 
@@ -68,11 +70,14 @@ This device was developed as a low-cost, compact alternative to traditional LiDA
 
 ## Block Diagrams
 
-![Component Block Diagram](images/component_diagram.png)
-*Figure 2: Component Block Diagram*
-
-![Data Flow Graph](images/data_flow.png)
-*Figure 3: Data Flow Graph*
+<div align="center">
+  <table>
+    <tr>
+      <td align="center"><img src="images/component_diagram.png" alt="Component Block Diagram" width="400"/><br/><em>Figure 2: Component Block Diagram</em></td>
+      <td align="center"><img src="images/data_flow.png" alt="Data Flow Graph" width="400"/><br/><em>Figure 3: Data Flow Graph</em></td>
+    </tr>
+  </table>
+</div>
 
 ## Pinout Description
 
@@ -138,8 +143,10 @@ If second scan layer: `x = 1` → Point: `(1, 1060.7, 1060.7)`
 
 3. **Verify Wiring**  
 
-   ![Circuit Diagram](images/Circuit_Diagram.png)
-   *Figure 7: LiDAR System Circuit Diagram*
+   <div align="center">
+     <img src="images/Circuit_Diagram.png" alt="Circuit Diagram" width="500"/>
+     <p><em>Figure 4: LiDAR System Circuit Diagram</em></p>
+   </div>
 
 4. **Load Firmware**  
    > **Note:** This repository does not include the Keil workspace or project files. You will need to manually create a new Keil project for the MSP-EXP432E401Y and copy/paste the microcontroller code into it. The code files (e.g., `main.c`) are provided in the `/src` directory of this repo.
@@ -147,8 +154,10 @@ If second scan layer: `x = 1` → Point: `(1, 1060.7, 1060.7)`
    Once your Keil project is set up:
    - Click Translate → Build → Load.
 
-   ![Keil Code Flowchart](images/keil_flowchart.png)
-   *Figure 8: Keil Code Flowchart*
+   <div align="center">
+     <img src="images/keil_flowchart.png" alt="Keil Code Flowchart" width="500"/>
+     <p><em>Figure 5: Keil Code Flowchart</em></p>
+   </div>
 
 5. **Reset**  
    Press the reset button next to the microUSB after flashing.
@@ -168,8 +177,10 @@ If second scan layer: `x = 1` → Point: `(1, 1060.7, 1060.7)`
 9. **Visualization**  
    After the desired number of scans, Python automatically generates a 3D scatter plot.
 
-   ![Python Visualization Flowchart](images/python_flowchart.png)
-   *Figure 9: Python Visualization Flowchart*
+   <div align="center">
+     <img src="images/python_flowchart.png" alt="Python Visualization Flowchart" width="500"/>
+     <p><em>Figure 6: Python Visualization Flowchart</em></p>
+   </div>
 
 ## Visualization
 
@@ -182,23 +193,39 @@ If second scan layer: `x = 1` → Point: `(1, 1060.7, 1060.7)`
 
 To evaluate the system in a real indoor environment, a hallway on the second floor of the Engineering Technology Building (ETB) was scanned.
 
-![ETB Map](images/etb.png)
-*Figure 4: Engineering Technology Building (ETB) second floor map showing the approximate scan location*
+<div align="center">
+  <img src="images/etb.png" alt="ETB Map" width="500"/>
+  <p><em>Figure 7: Engineering Technology Building (ETB) second floor map showing the approximate scan location</em></p>
+</div>
 
-![Hallway Reference Photo](images/hallway.jpg)
-*Figure 5: Reference photo of the scanned hallway*
+<div align="center">
+  <img src="images/hallway.jpg" alt="Hallway Reference Photo" width="600"/>
+  <p><em>Figure 8: Reference photo of the scanned hallway</em></p>
+</div>
 
-![Hallway Scan Results](images/HallwayScan.png)
-*Figure 6: Hallway Scan from Multiple Perspectives*
+### Scan Results
 
-![Hallway Scan Results](images/top_view_plot.jpeg)
-*Figure 7: Hallway Scan from Multiple Perspectives*
-
-![Hallway Scan Results](images/front_view_plot.jpeg)
-*Figure 8: Hallway Scan from Multiple Perspectives*
-
-![Hallway Scan Results](images/angle_view_plot.jpeg)
-*Figure 9: Hallway Scan from Multiple Perspectives*
+<div align="center">
+  <table>
+    <tr>
+      <td align="center"><img src="images/HallwayScan.png" alt="Hallway Scan 3D View" width="300"/></td>
+      <td align="center"><img src="images/top_view_plot.jpeg" alt="Top View" width="300"/></td>
+    </tr>
+    <tr>
+      <td align="center"><em>3D Perspective View</em></td>
+      <td align="center"><em>Top View</em></td>
+    </tr>
+    <tr>
+      <td align="center"><img src="images/front_view_plot.jpeg" alt="Front View" width="300"/></td>
+      <td align="center"><img src="images/angle_view_plot.jpeg" alt="Angle View" width="300"/></td>
+    </tr>
+    <tr>
+      <td align="center"><em>Front View</em></td>
+      <td align="center"><em>Angle View</em></td>
+    </tr>
+  </table>
+  <p><em>Figure 9: Hallway Scan from Multiple Perspectives</em></p>
+</div>
 
 The reconstructed hallway scan captures the dominant geometry of the environment, including two approximately parallel side walls and an end boundary visible in the top view. Minor curvature and point spread are present due to step angle quantization, sensor noise, and slight inconsistencies in manual translation between scans. Despite these limitations, the output demonstrates that the system can recover recognizable indoor structure using low-cost hardware.
 

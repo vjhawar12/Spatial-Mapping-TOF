@@ -142,7 +142,7 @@ If second scan layer: `x = 1` → Point: `(1, 1060.7, 1060.7)`
    *Figure 7: LiDAR System Circuit Diagram*
 
 4. **Load Firmware**  
-   > **Note:** This repository does not include the Keil workspace or project files. You will need to manually create a new Keil project for the MSP-EXP432E401Y and copy/paste the microcontroller code into it. The code files (e.g., `main.c`) are provided in the `/firmware` directory of this repo.
+   > **Note:** This repository does not include the Keil workspace or project files. You will need to manually create a new Keil project for the MSP-EXP432E401Y and copy/paste the microcontroller code into it. The code files (e.g., `main.c`) are provided in the `/src` directory of this repo.
    
    Once your Keil project is set up:
    - Click Translate → Build → Load.
